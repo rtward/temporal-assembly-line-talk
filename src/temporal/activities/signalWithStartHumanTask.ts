@@ -1,5 +1,6 @@
 import { Context } from "@temporalio/activity";
 import { doHumanTask } from "../workflows";
+import { subscribeToHumanTaskCompletedSignal } from "../../types";
 
 function getDeterministicWorkflowId(input: number[]) {
   return `doHumanTaskForInput-${input.join(",")}`;
