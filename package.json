@@ -13,7 +13,10 @@
     "@temporalio/activity": "^1.11.1",
     "@temporalio/worker": "^1.11.1",
     "@temporalio/workflow": "^1.11.1",
-    "express": "^4.19.2"
+    "better-sqlite3": "^11.2.0",
+    "express": "^4.19.2",
+    "kysely": "^0.27.4",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/node": "^22.4.1"
