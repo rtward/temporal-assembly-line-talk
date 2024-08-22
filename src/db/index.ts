@@ -4,6 +4,7 @@ import {
   Insertable,
   Migrator,
   Selectable,
+  Transaction,
   Updateable,
 } from "kysely";
 import SQLite from "better-sqlite3";
@@ -13,13 +14,13 @@ import { promises as fs } from "fs";
 import { TaskStatus } from "../types";
 
 interface TaskTable {
-  id: Generated<bigint>;
+  id: string;
   type: string;
-  input: Buffer;
-  output?: Buffer;
+  input: string;
+  output?: string;
   assignee?: string;
-  status: Generated<TaskStatus>;
-  heartbeat?: Date;
+  status: Generated<`${TaskStatus}`>;
+  heartbeat?: string;
 }
 
 type Task = Selectable<TaskTable>;
@@ -65,12 +66,19 @@ export async function getDb() {
       console.error(error);
       process.exit(1);
     }
+
+    console.log("Database is ready");
   }
 
   const db = dbCache!;
 
-  const getTask = async (id: bigint): Promise<Task> => {
-    const task = await db
+  const getTask = async (
+    id: string,
+    txn?: Transaction<Database>
+  ): Promise<Task> => {
+    const txnOrDb = txn || db;
+
+    const task = await txnOrDb
       .selectFrom("tasks")
       .select([
         "id",
@@ -86,6 +94,9 @@ export async function getDb() {
 
     if (!task) throw new Error("failed to fetch task");
 
+    task.input = JSON.parse(task.input);
+    task.output = task.output ? JSON.parse(task.output) : undefined;
+
     return task;
   };
 
@@ -94,15 +105,14 @@ export async function getDb() {
       .insertInto("tasks")
       .values(newTask)
       .executeTakeFirst();
+    if (!result) throw new Error("failed to insert task");
 
-    if (!result || !result.insertId) throw new Error("failed to insert task");
-
-    return getTask(result.insertId);
+    return getTask(newTask.id);
   };
 
   const startTask = async (assignee: string): Promise<Task> => {
-    return await db.transaction().execute(async () => {
-      const task = await db
+    return await db.transaction().execute(async (txn) => {
+      const task = await txn
         .selectFrom("tasks")
         .select(["id"])
         .where((eb) =>
@@ -112,61 +122,63 @@ export async function getDb() {
             eb(
               "heartbeat",
               "<",
-              new Date(new Date().valueOf() - 1000 * 60 * 5)
+              new Date(new Date().valueOf() - 1000 * 60 * 5).toISOString()
             ),
           ])
         )
         .executeTakeFirst();
       if (!task) throw new Error("no tasks available");
 
-      const update = db
+      const result = txn
         .updateTable("tasks")
         .set("status", TaskStatus.IN_PROGRESS)
         .set("assignee", assignee)
-        .set("heartbeat", new Date())
-        .where("id", "=", task.id);
-
-      const result = await update.execute();
+        .set("heartbeat", new Date().toISOString())
+        .where("id", "=", task.id)
+        .execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(task.id);
+      return getTask(task.id, txn);
     });
   };
 
-  const heartbeatTask = (id: bigint): Promise<Task> => {
-    return db.transaction().execute(async () => {
-      const task = await getTask(id);
+  const heartbeatTask = (id: string): Promise<Task> => {
+    return db.transaction().execute(async (txn) => {
+      const task = await getTask(id, txn);
       if (task.status !== TaskStatus.IN_PROGRESS)
         throw new Error("not started");
 
-      const update = db
+      const update = txn
         .updateTable("tasks")
-        .set("heartbeat", new Date())
+        .set("heartbeat", new Date().toISOString())
         .where("id", "=", id);
 
       const result = await update.execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(id);
+      return getTask(id, txn);
     });
   };
 
-  const completeTask = (id: bigint, output: Buffer): Promise<Task> => {
-    return db.transaction().execute(async () => {
-      const task = await getTask(id);
+  const completeTask = (
+    id: string,
+    output: Record<string, any>
+  ): Promise<Task> => {
+    return db.transaction().execute(async (txn) => {
+      const task = await getTask(id, txn);
       if (task.status !== TaskStatus.IN_PROGRESS)
         throw new Error("not started");
 
-      const update = db
+      const update = txn
         .updateTable("tasks")
         .set("status", TaskStatus.COMPLETED)
-        .set("output", output)
+        .set("output", JSON.stringify(output))
         .where("id", "=", id);
 
       const result = await update.execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(id);
+      return getTask(id, txn);
     });
   };
 
@@ -178,3 +190,6 @@ export async function getDb() {
     completeTask,
   };
 }
+
+// Call onece to instantiate the database on startup
+getDb();
