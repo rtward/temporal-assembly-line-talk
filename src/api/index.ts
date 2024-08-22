@@ -1,5 +1,5 @@
 import express from "express";
-import { getDb } from "../db";
+import { TasksDb } from "../db";
 import bodyParser from "body-parser";
 
 const app = express();
@@ -15,7 +15,7 @@ app.post("/start", (req, res) =>
       if (typeof assignee !== "string")
         throw new Error("assignee must be a string");
 
-      const db = await getDb();
+      const db = await TasksDb.getInstance();
       const task = await db.startTask(assignee);
       return res.json(task);
     })
@@ -31,7 +31,7 @@ app.post("/heartbeat/:taskId", (req, res) =>
       if (typeof taskId !== "string")
         throw new Error("taskId must be a string");
 
-      const db = await getDb();
+      const db = await TasksDb.getInstance();
       const task = await db.heartbeatTask(taskId);
       return res.json(task);
     })
@@ -50,7 +50,7 @@ app.post("/complete/:taskId", bodyParser.json(), (req, res) =>
       const result = req.body;
       console.dir(result);
 
-      const db = await getDb();
+      const db = await TasksDb.getInstance();
       const task = await db.completeTask(taskId, result);
       // TODO Signal the workflow that the task has been completed
       return res.json(task);

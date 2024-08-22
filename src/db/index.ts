@@ -13,13 +13,27 @@ import path from "path";
 import { promises as fs } from "fs";
 import { TaskStatus } from "../types";
 
+/** The schema of the tasks table in the database */
 interface TaskTable {
+  /** The task ID, also the ID of the temporal workflow to signal on completion */
   id: string;
+
+  /** The task type */
   type: string;
+
+  /** The JSON encoded task input */
   input: string;
+
+  /** The JSON encoded task output */
   output?: string;
+
+  /** The current task assignee */
   assignee?: string;
+
+  /** The current task status */
   status: Generated<`${TaskStatus}`>;
+
+  /** The most recent task heartbeat */
   heartbeat?: string;
 }
 
@@ -31,17 +45,43 @@ interface Database {
   tasks: TaskTable;
 }
 
-let dbCache: Kysely<Database> | undefined;
-export async function getDb() {
-  if (!dbCache) {
-    dbCache = new Kysely<Database>({
+/**
+ * The singleton class representing our database.
+ */
+export class TasksDb {
+  private static instance: TasksDb | undefined;
+
+  /**
+   * Instantiates an instance of the TasksDb class if one does not already exist and returns it.
+   *
+   * @returns The singleton instance of the TasksDb class.
+   */
+  static async getInstance() {
+    if (!this.instance) {
+      this.instance = new TasksDb();
+      await this.instance.init();
+    }
+    return this.instance;
+  }
+
+  /** The kysely database we use for accessing sqlite */
+  private db: Kysely<Database>;
+
+  /** Instantiates a new TasksDb instance */
+  private constructor() {
+    if (TasksDb.instance) throw new Error("TasksDb is a singleton class");
+
+    this.db = new Kysely<Database>({
       dialect: new SqliteDialect({
         database: new SQLite("/tmp/tasks.db"),
       }),
     });
+  }
 
+  /** Applies the Tasks migrations to the database to create the schema */
+  private async init() {
     const migrator = new Migrator({
-      db: dbCache,
+      db: this.db,
       provider: new FileMigrationProvider({
         fs,
         path,
@@ -70,13 +110,16 @@ export async function getDb() {
     console.log("Database is ready");
   }
 
-  const db = dbCache!;
-
-  const getTask = async (
-    id: string,
-    txn?: Transaction<Database>
-  ): Promise<Task> => {
-    const txnOrDb = txn || db;
+  /**
+   * Get a task by its ID.
+   *
+   * @param id The ID of the task to fetch
+   * @param txn Optionally provide a transaction to use instead of the default database
+   * @returns The task with the given ID
+   * @throws If the task does not exist
+   */
+  async getTask(id: string, txn?: Transaction<Database>): Promise<Task> {
+    const txnOrDb = txn || this.db;
 
     const task = await txnOrDb
       .selectFrom("tasks")
@@ -98,20 +141,34 @@ export async function getDb() {
     task.output = task.output ? JSON.parse(task.output) : undefined;
 
     return task;
-  };
+  }
 
-  const addTask = async (newTask: NewTask): Promise<Task> => {
-    const result = await db
+  /**
+   * Add a new task to the database.
+   *
+   * @param newTask The task definition
+   * @returns The newly created task
+   * @throws If the task could not be created
+   */
+  async addTask(newTask: NewTask): Promise<Task> {
+    const result = await this.db
       .insertInto("tasks")
       .values(newTask)
       .executeTakeFirst();
     if (!result) throw new Error("failed to insert task");
 
-    return getTask(newTask.id);
-  };
+    return this.getTask(newTask.id);
+  }
 
-  const startTask = async (assignee: string): Promise<Task> => {
-    return await db.transaction().execute(async (txn) => {
+  /**
+   * Start the next available task and assign it to a user.
+   *
+   * @param assignee The user to assign the task
+   * @returns The task that was started
+   * @throws If no tasks are available
+   */
+  async startTask(assignee: string): Promise<Task> {
+    return await this.db.transaction().execute(async (txn) => {
       const task = await txn
         .selectFrom("tasks")
         .select(["id"])
@@ -138,13 +195,19 @@ export async function getDb() {
         .execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(task.id, txn);
+      return this.getTask(task.id, txn);
     });
-  };
+  }
 
-  const heartbeatTask = (id: string): Promise<Task> => {
-    return db.transaction().execute(async (txn) => {
-      const task = await getTask(id, txn);
+  /**
+   * Heartbeat a task to indicate that it is still in progress.
+   *
+   * @param id The ID of the task to heartbeat
+   * @returns The task that was updated
+   */
+  async heartbeatTask(id: string): Promise<Task> {
+    return this.db.transaction().execute(async (txn) => {
+      const task = await this.getTask(id, txn);
       if (task.status !== TaskStatus.IN_PROGRESS)
         throw new Error("not started");
 
@@ -156,16 +219,20 @@ export async function getDb() {
       const result = await update.execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(id, txn);
+      return this.getTask(id, txn);
     });
-  };
+  }
 
-  const completeTask = (
-    id: string,
-    output: Record<string, any>
-  ): Promise<Task> => {
-    return db.transaction().execute(async (txn) => {
-      const task = await getTask(id, txn);
+  /**
+   * Complete a task with the given output.
+   *
+   * @param id The ID of the task to complete
+   * @param output The output of the task
+   * @returns The task that was completed
+   */
+  async completeTask(id: string, output: Record<string, any>): Promise<Task> {
+    return this.db.transaction().execute(async (txn) => {
+      const task = await this.getTask(id, txn);
       if (task.status !== TaskStatus.IN_PROGRESS)
         throw new Error("not started");
 
@@ -178,18 +245,14 @@ export async function getDb() {
       const result = await update.execute();
       if (!result) throw new Error("failed to update task");
 
-      return getTask(id, txn);
+      return this.getTask(id, txn);
     });
-  };
-
-  return {
-    getTask,
-    addTask,
-    startTask,
-    heartbeatTask,
-    completeTask,
-  };
+  }
 }
 
 // Call onece to instantiate the database on startup
-getDb();
+TasksDb.getInstance().catch((err) => {
+  console.error("failed to initialize database");
+  console.error(err);
+  process.exit(1);
+});
