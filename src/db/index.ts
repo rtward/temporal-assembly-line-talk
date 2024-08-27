@@ -138,7 +138,7 @@ export class TasksDb {
     if (!task) throw new Error("failed to fetch task");
 
     task.input = JSON.parse(task.input);
-    task.output = task.output ? JSON.parse(task.output) : undefined;
+    task.output = task.output ?? "{}";
 
     return task;
   }

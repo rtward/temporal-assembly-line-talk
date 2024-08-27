@@ -38,10 +38,12 @@ export async function signalWithStartHumanTask(input: number[]) {
     ctx.log.info(
       `signalWithStartHumanTask: Task ${workflowId} has already been completed, returning output ${task.output}`
     );
-    client.workflow.getHandle(workflowId).signal(humanTaskCompletedSignal, {
-      success: true,
-      output: JSON.parse(task.output ?? "{}"),
-    });
+    client.workflow
+      .getHandle(ctx.info.workflowExecution.workflowId)
+      .signal(humanTaskCompletedSignal, {
+        success: true,
+        output: JSON.parse(task.output ?? "{}"),
+      });
     return;
   }
 

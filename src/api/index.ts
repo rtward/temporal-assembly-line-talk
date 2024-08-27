@@ -1,6 +1,8 @@
 import express from "express";
 import { TasksDb } from "../db";
 import bodyParser from "body-parser";
+import { Client } from "@temporalio/client";
+import { humanTaskCompletedSignal } from "../types";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -52,7 +54,14 @@ app.post("/complete/:taskId", bodyParser.json(), (req, res) =>
 
       const db = await TasksDb.getInstance();
       const task = await db.completeTask(taskId, result);
-      // TODO Signal the workflow that the task has been completed
+
+      const client = new Client();
+      const handle = client.workflow.getHandle(taskId);
+      await handle.signal(humanTaskCompletedSignal, {
+        success: true,
+        output: result,
+      });
+
       return res.json(task);
     })
     .catch((err) => res.status(500).send(`error: ${err.message}`))

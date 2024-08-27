@@ -1,4 +1,5 @@
 import {
+  ApplicationFailure,
   condition,
   log,
   proxyActivities,
@@ -46,5 +47,5 @@ export async function humanTask(input: number[]): Promise<number> {
   );
 
   if (result!.success) return result!.output;
-  else throw result!.error;
+  else throw ApplicationFailure.fromError(result!.error);
 }
