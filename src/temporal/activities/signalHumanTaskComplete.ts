@@ -5,6 +5,16 @@ import {
 } from "../../types";
 import { Context } from "@temporalio/activity";
 
+/**
+ * Given a list of subscribed workflow IDs, and a signal payload, signal each subscribed
+ * workflow with the payload.
+ *
+ * This function is fire and forget, and will not throw if there is an error signalling any of
+ * the workflows.
+ *
+ * @param subscriptions The list of subscribed workflow IDs
+ * @param payload The payload to send to each subscribed workflow
+ */
 export async function signalHumanTaskComplete(
   subscriptions: string[],
   payload: HumanTaskCompletedSignalPayload
