@@ -10,6 +10,9 @@ const { getDigitsFromString } = proxyActivities<typeof activities>({
 /**
  * This is a contrived example of a workflow that uses parallel human tasks.
  *
+ * The task separates the digits from a string and then asks a human to write each digit words,
+ * then combines the results into a single string.
+ *
  * @param input The input to the workflow
  */
 export async function writeDigitsInWords(input: string): Promise<string> {

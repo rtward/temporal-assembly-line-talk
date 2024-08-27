@@ -12,6 +12,8 @@ const { getDigitsFromString, doubleNumber } = proxyActivities<
 /**
  * This is a contrived example of a workflow that uses a human task.
  *
+ * The task separates the digits from a string and then asks a human to add them together.
+ *
  * @param input The input to the workflow
  */
 export async function addDigitsInStringTogether(
