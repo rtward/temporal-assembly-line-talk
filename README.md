@@ -6,9 +6,9 @@ The goal of this talk is to show off a system for integrating human tasks seamle
 
 This sample code is built in Typescript and uses a Sqlite DB as a persistence layer.  You'll need to have a recent version of node installed as well as `pnpm` for node.
 
-## Running the example workflow
+## Setting up & starting the system
 
-### Setting up
+### Install deps
 
 Install the dependencies
 ```
@@ -22,6 +22,8 @@ pnpm install
  - Start the Temporal server: `temporal server start-dev`
  - Start the Tempral worker: `pnpm worker`
  - Start the API: `pnpm api`
+ 
+## Running the `addDigitsInStringTogether` sample workflow
 
 ### Submit a workflow
 
@@ -53,3 +55,18 @@ temporal workflow execute --task-queue default --workflow-id test-3 --input '"13
 ```
 
 See that the workflow returns immediately because it fetches the result from the DB and bypasses creating another task.
+
+## Running the `writeDigitsInWords` sample workflow
+
+Submit the workflow
+```
+temporal workflow execute --task-queue default --workflow-id test-1 --input '"1125"' --type myWorkflow
+```
+
+Look at the workflows and notice how there are three workflows created. We have four digits, but only three unique ones, so one of the human tasks was deduplicated.
+
+### Perform the human task for each digit
+
+ - Start the task: `curl -XPOST localhost:3000/start`
+ - Heartbeat the task: `curl -XPOST localhost:3000/heartbeat/:task-id`
+ - Complete the task: `curl -XPOST --json '{"task": "payload"}' localhost:3000/complete/:task-id`
