@@ -1,4 +1,7 @@
-export async function doActivity(input: string) {
+export async function doActivity(input: string): Promise<number[]> {
   console.log(`doActivity: got some input to handl: ${input}`);
-  return [1, 3, 5];
+
+  const numbers = [...input.matchAll(/\d+/g)].join("");
+  const digits = numbers.split("").map((digit) => parseInt(digit, 10));
+  return digits;
 }
