@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@temporalio/activity": "^1.11.1",
+    "@temporalio/client": "^1.11.1",
     "@temporalio/worker": "^1.11.1",
     "@temporalio/workflow": "^1.11.1",
     "@types/body-parser": "^1.19.5",
