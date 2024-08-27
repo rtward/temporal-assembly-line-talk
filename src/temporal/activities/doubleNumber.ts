@@ -3,8 +3,9 @@
  *
  * @param input The input to the activity
  */
-export async function doAnotherActivity(input: number) {
+export async function doubleNumber(input: number) {
   console.log(
     `doAnotherActivity: handling the result from the human task ${input}`
   );
+  return input * 2;
 }

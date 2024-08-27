@@ -6,6 +6,7 @@ import {
   setHandler,
 } from "@temporalio/workflow";
 import {
+  HumanTask,
   humanTaskCompletedSignal,
   HumanTaskCompletedSignalPayload,
 } from "../../types";
@@ -18,7 +19,7 @@ const { signalWithStartHumanTask } = proxyActivities<typeof activities>({
 });
 
 /**
- * The human task workflow.
+ * The generic human task workflow, this workflow should be called by a helper workflow function.
  *
  * This workflow is the entry point called by other workflows that need to perform a human task.
  * This workflow will return a memoized result if one is available, otherwise it will perform a
@@ -27,7 +28,10 @@ const { signalWithStartHumanTask } = proxyActivities<typeof activities>({
  * @param input The input to the human task
  * @returns The output of the human task
  */
-export async function humanTask(input: number[]): Promise<number> {
+export async function humanTask<Task extends HumanTask>(
+  type: Task["type"],
+  input: Task["input"]
+): Promise<Task["output"]> {
   let result: HumanTaskCompletedSignalPayload | undefined;
   setHandler(humanTaskCompletedSignal, (paylaod) => {
     log.info(
@@ -38,7 +42,7 @@ export async function humanTask(input: number[]): Promise<number> {
     result = paylaod;
   });
 
-  await signalWithStartHumanTask(input);
+  await signalWithStartHumanTask(type, input);
 
   log.info("humanTask: Waiting for humanTaskCompletedSignal");
   await condition(() => result !== undefined);
@@ -46,6 +50,7 @@ export async function humanTask(input: number[]): Promise<number> {
     `humanTask: Human task completed with result ${JSON.stringify(result)}`
   );
 
-  if (result!.success) return result!.output;
+  // This should probably have type validation here to ensure that we are returning the correct type
+  if (result!.success) return result!.output as Task["output"];
   else throw ApplicationFailure.fromError(result!.error);
 }

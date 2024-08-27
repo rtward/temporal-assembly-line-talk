@@ -1,5 +1,5 @@
-export * from "./doActivity";
-export * from "./doAnotherActivity";
+export * from "./getDigitsFromString";
+export * from "./doubleNumber";
 export * from "./signalWithStartHumanTask";
 export * from "./signalHumanTaskComplete";
 export * from "./submitTask";

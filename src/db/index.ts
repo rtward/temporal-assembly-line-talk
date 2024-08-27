@@ -173,14 +173,17 @@ export class TasksDb {
         .selectFrom("tasks")
         .select(["id"])
         .where((eb) =>
-          eb.or([
-            eb("status", "=", TaskStatus.NOT_STARTED),
-            eb("heartbeat", "=", null),
-            eb(
-              "heartbeat",
-              "<",
-              new Date(new Date().valueOf() - 1000 * 60 * 5).toISOString()
-            ),
+          eb.and([
+            eb("status", "!=", TaskStatus.COMPLETED),
+            eb.or([
+              eb("status", "=", TaskStatus.NOT_STARTED),
+              eb("heartbeat", "=", null),
+              eb(
+                "heartbeat",
+                "<",
+                new Date(new Date().valueOf() - 1000 * 60 * 5).toISOString()
+              ),
+            ]),
           ])
         )
         .executeTakeFirst();

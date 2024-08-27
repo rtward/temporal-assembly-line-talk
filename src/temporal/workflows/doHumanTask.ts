@@ -1,13 +1,12 @@
 import {
   CancellationScope,
   condition,
-  getExternalWorkflowHandle,
   log,
   proxyActivities,
   setHandler,
 } from "@temporalio/workflow";
-import { TasksDb } from "../../db";
 import {
+  HumanTask,
   humanTaskCompletedSignal,
   HumanTaskCompletedSignalPayload,
   subscribeToHumanTaskCompletedSignal,
@@ -22,7 +21,8 @@ const { submitTask, signalHumanTaskComplete } = proxyActivities<
 });
 
 /**
- * Actually perform the human task.
+ * Actually perform the human task.  This workflow should only ever be called by a signalWithStart
+ * from a `humanTask` workflow.
  *
  * This workflow accepts signals from other workflows that act as subscriptions to the human task
  * completion signal.  When this workflow receives a signal, it will forward the signal to the
@@ -30,7 +30,10 @@ const { submitTask, signalHumanTaskComplete } = proxyActivities<
  *
  * @param input The input to the human task
  */
-export async function doHumanTask(input: number[]) {
+export async function doHumanTask<Task extends HumanTask>(
+  type: Task["type"],
+  input: Task["input"]
+) {
   let subscriptions = new Set<string>();
   setHandler(subscribeToHumanTaskCompletedSignal, (workflowId: string) => {
     log.info(`doHumanTask: Subscribing workflow ${workflowId}`);
@@ -52,7 +55,7 @@ export async function doHumanTask(input: number[]) {
 
   let error: Error | undefined = undefined;
   try {
-    await submitTask(input);
+    await submitTask(type, input);
 
     log.info(
       "doHumanTask: Task submitted, waiting for humanTaskCompletedSignal"

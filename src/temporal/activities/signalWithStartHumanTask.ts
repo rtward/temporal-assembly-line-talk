@@ -2,10 +2,12 @@ import { Context } from "@temporalio/activity";
 import { Client } from "@temporalio/client";
 import { doHumanTask } from "../workflows";
 import {
+  HumanTask,
   humanTaskCompletedSignal,
   subscribeToHumanTaskCompletedSignal,
 } from "../../types";
 import { TasksDb } from "../../db";
+import crypto from "crypto";
 
 /**
  * Given an input, return a deterministic workflow ID that can be used for memoization.
@@ -13,8 +15,15 @@ import { TasksDb } from "../../db";
  * @param input The task input
  * @returns A deterministic workflow ID based on the input
  */
-function getDeterministicWorkflowId(input: number[]) {
-  return `doHumanTaskForInput-${input.join("-")}`;
+function getDeterministicWorkflowId(
+  type: string,
+  input: Record<string, unknown>
+) {
+  const hash = crypto
+    .createHash("md5")
+    .update(JSON.stringify(input))
+    .digest("hex");
+  return `doHumanTask-${type}-${hash}`;
 }
 
 /**
@@ -24,12 +33,15 @@ function getDeterministicWorkflowId(input: number[]) {
  *
  * @param input The input to the human task
  */
-export async function signalWithStartHumanTask(input: number[]) {
+export async function signalWithStartHumanTask<Task extends HumanTask>(
+  type: Task["type"],
+  input: Task["input"]
+) {
   const ctx = await Context.current();
   const db = await TasksDb.getInstance();
   const client = new Client();
 
-  const workflowId = getDeterministicWorkflowId(input);
+  const workflowId = getDeterministicWorkflowId(type, input);
   ctx.log.info(`signalWithStartHumanTask: Using workflow ID ${workflowId}`);
 
   // If the task is already completed, signal the workflow with the result
@@ -55,7 +67,7 @@ export async function signalWithStartHumanTask(input: number[]) {
     workflowId,
     workflowRunTimeout: "7d",
     taskQueue: ctx.info.taskQueue,
-    args: [input],
+    args: [type, input],
     signal: subscribeToHumanTaskCompletedSignal,
     signalArgs: [ctx.info.workflowExecution.workflowId],
   });

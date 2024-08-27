@@ -1,6 +1,29 @@
 import { defineSignal } from "@temporalio/workflow";
 
-type HumanTaskCompletedSignalSuccessPayload = { success: true; output: number };
+export interface HumanTaskBase {
+  type: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+}
+
+export interface AddDigitsHumanTask extends HumanTaskBase {
+  type: "add-digits";
+  input: { digits: number[] };
+  output: { sum: number };
+}
+
+export interface WriteNumberInWords extends HumanTaskBase {
+  type: "write-number-in-words";
+  input: { number: number };
+  output: { text: string };
+}
+
+export type HumanTask = AddDigitsHumanTask | WriteNumberInWords;
+
+type HumanTaskCompletedSignalSuccessPayload = {
+  success: true;
+  output: Record<string, unknown>;
+};
 type HumanTaskCompletedSignalFailurePayload = { success: false; error: Error };
 export type HumanTaskCompletedSignalPayload =
   | HumanTaskCompletedSignalSuccessPayload
